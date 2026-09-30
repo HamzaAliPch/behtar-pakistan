@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { passwordResetPublicOrigin, smtpConfiguration } from "./email/config";
 
 function privatePath(value: string | undefined, label: string): string {
   if (!value || !path.isAbsolute(value)) throw new Error(`${label} must be an explicit absolute private path.`);
@@ -30,5 +31,6 @@ export function assertProductionIsolation(): void {
   const uploads = privatePath(process.env.PRIVATE_UPLOAD_ROOT, "PRIVATE_UPLOAD_ROOT");
   if (!fs.existsSync(uploads) || !fs.statSync(uploads).isDirectory()) throw new Error("PRIVATE_UPLOAD_ROOT must be an existing directory.");
   if (database === uploads || database.startsWith(uploads + path.sep)) throw new Error("Database and upload paths must be separate.");
-  if (process.env.PUBLIC_DONATIONS_ENABLED !== "0" || process.env.NOTIFICATION_PROVIDER_MODE !== "disabled" || process.env.NOTIFICATION_WEBHOOK_ENABLED !== "0") throw new Error("Unapproved public payment or external messaging setting.");
+  if (process.env.PUBLIC_DONATIONS_ENABLED !== "0" || process.env.NOTIFICATION_WEBHOOK_ENABLED !== "0") throw new Error("Unapproved public payment or external messaging setting.");
+  if (process.env.NOTIFICATION_PROVIDER_MODE !== "disabled" && (process.env.NOTIFICATION_PROVIDER_MODE !== "smtp" || !smtpConfiguration() || !passwordResetPublicOrigin())) throw new Error("SMTP configuration or HTTPS reset origin is incomplete, or another external provider is unapproved.");
 }

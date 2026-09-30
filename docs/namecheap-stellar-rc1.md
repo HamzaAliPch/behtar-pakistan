@@ -7,7 +7,7 @@
 - Target: `behtarpakistan.org`, cPanel **Setup Node.js App**, **Production**, Node **22.23.2**, application root `/home/CPANEL_USER/behtar-pakistan` (outside `public_html`). Enter `app.js` as the startup file. Passenger assigns `PORT`; do not hardcode it. HTTPS terminates at cPanel's web server. The application needs same-origin HTTPS forwarding, `Host` and `X-Forwarded-Proto` checks in a real host smoke test.
 - Build on a separate **Linux x64 Node 22.23.2** runner. Windows output, including the `--local-smoke` artifact, is **not deployable** because Prisma's native query engine is platform-specific. Do not run `next build` on Stellar's 1 GB account.
 - Production data belongs in `/home/CPANEL_USER/behtar-private/data/production.db` and `/home/CPANEL_USER/behtar-private/uploads`, outside the application and document roots. The app fails closed when `BEHTAR_PRODUCTION=1` and these explicit paths or disabled integration settings are absent. A real host preflight is still required. Keep backup copies outside `public_html`, preferably encrypted off-host.
-- Leave public donations, SMS, WhatsApp, webhook delivery, password-reset delivery and search indexing disabled until separately tested and authorized. In-app notices work without a paid provider. Email verification is not implemented or enforced; registering currently creates a citizen account immediately. Password recovery already has a single-use 20-minute token, invalidates prior links on resend, and allows at most three requests per address and 100 total per hour. It uses an approved **HTTPS relay**, not SMTP. [Namecheap Private Email](https://www.namecheap.com/support/knowledgebase/article.aspx/1179/2175/general-private-email-configuration-for-mail-clients-and-mobile-devices/) SMTP (`mail.privateemail.com`, 465 implicit TLS or 587 STARTTLS) and [app passwords](https://www.namecheap.com/support/knowledgebase/article.aspx/10816/2178/how-to-use-app-passwords-for-private-email/) cannot be used with this code without a separately reviewed adapter and mailbox delivery test. Do not enter mailbox credentials into the current app configuration.
+- Leave public donations, SMS, WhatsApp, webhook delivery, password-reset delivery and search indexing disabled until separately tested and authorized. In-app notices work without a paid provider. Email verification is not implemented or enforced; registering currently creates a citizen account immediately. Password recovery retains its single-use 20-minute token, invalidates prior links on resend, and allows at most three requests per address and 100 total per hour. Transactional email supports the existing approved HTTPS relay or Namecheap Private Email SMTP, but both remain disabled by default. Enable SMTP only after a private mailbox and one-message delivery test succeed.
 - A clean production SQLite database is required. Never upload `prisma/dev.db`, `prisma/friend-test.db`, `prisma/auth-test.db`, any local session, QA photo or screenshot. Migrate the **new** database only after a backup and an approved deployment window.
 - Stellar's 1 GB memory, build artifact size, Passenger behavior, SQLite write concurrency, static assets, upload body limits and availability of `flock`, `timeout` and Prisma CLI must be verified on the actual account. If any fail, use a host with adequate resources; do not weaken the privacy checks.
 
@@ -23,7 +23,7 @@ From a **clean committed** reviewed source revision on Linux x64 with Node 22.23
 node --version                         # v22.23.2
 git status --short                     # must be empty
 # CLI downloads require concrete platform names; schema.prisma retains "native" for Prisma Client.
-export PRISMA_CLI_BINARY_TARGETS='debian-openssl-3.0.x,rhel-openssl-1.1.x,rhel-openssl-3.0.x'
+export PRISMA_CLI_BINARY_TARGETS='debian-openssl-3.0.x,debian-openssl-1.0.x,debian-openssl-1.1.x,rhel-openssl-1.1.x,rhel-openssl-3.0.x'
 npm ci
 npm run typecheck
 npm run lint
@@ -56,7 +56,7 @@ export NOTIFICATION_WEBHOOK_ENABLED=0
 export NOTIFICATION_WORKER_ENABLED=0
 ```
 
-4. Set those same production variables in **Setup Node.js App**; cPanel's app variables are not guaranteed to be present in cron, so the private file supplies cron's environment. Keep the two configurations synchronized. Set no `FRIEND_TEST_MODE` or `AUTH_TEST_MODE`. Keep password-reset relay variables unset until a verified HTTPS delivery relay exists.
+4. Set those same production variables in **Setup Node.js App**; cPanel's app variables are not guaranteed to be present in cron, so the private file supplies cron's environment. Keep the two configurations synchronized. Set no `FRIEND_TEST_MODE` or `AUTH_TEST_MODE`. Leave all email-delivery variables unset until the mailbox and DNS are ready. The SMTP password belongs only in the private production environment and cPanel's private app settings; never place it in Git, the artifact, a shell command argument or logs.
 5. Create a **new empty** production SQLite file with mode `600`; do not import a local database. Activate cPanel's Node 22 environment in Terminal, source the private environment, set `BEHTAR_ENV_FILE=/home/CPANEL_USER/behtar-private/env/production.sh`, and run `node preflight-cpanel.cjs` from the extracted artifact. This check is read-only and should pass before app startup; it does not confirm migrations, SSL or email.
 6. The release artifact includes the pinned Prisma **6.12.0** CLI, generated client, schema, migrations and RHEL engine variants. `preflight-cpanel.cjs` identifies the actual host Prisma platform and refuses an absent engine. Avoid `prisma migrate dev`, `reset` and `db push`. Set the absolute `DATABASE_URL`, take a backup, review status, then apply only `migrate deploy`. These are the exact commands after activating cPanel's Node 22 environment and sourcing the private environment file; they remain **unverified on this account**. Stop if memory or native binaries fail:
 
@@ -86,6 +86,40 @@ export ADMIN_EMAIL ADMIN_NAME ADMIN_PASSWORD
 node admin-provision.cjs
 unset ADMIN_EMAIL ADMIN_NAME ADMIN_PASSWORD
 ```
+
+## Namecheap Private Email SMTP, disabled until mailbox testing
+
+Namecheap documents `mail.privateemail.com` with authenticated SSL/TLS SMTP on port `465`. Create and verify the `no-reply@behtarpakistan.org` mailbox first. Keep the app's existing HTTPS reset-link origin; SMTP transports that link and does not alter token storage or expiry. Only password reset and the manual one-message test use SMTP. SMS and WhatsApp remain disabled; `NOTIFICATION_WORKER_ENABLED=0` and `NOTIFICATION_WEBHOOK_ENABLED=0` can remain unchanged.
+
+When ready for the private test, set these values in both the owner-only `production.sh` (mode `600`) and the cPanel Node.js app environment. Insert the real mailbox password privately; the placeholder below is **not** a working value. If Namecheap requires an application password, use that instead of the mailbox master password.
+
+```sh
+export NOTIFICATION_PROVIDER_MODE='smtp'
+export SMTP_HOST='mail.privateemail.com'
+export SMTP_PORT='465'
+export SMTP_SECURE='true'
+export SMTP_USER='no-reply@behtarpakistan.org'
+export SMTP_PASSWORD='REPLACE_PRIVATELY_WITH_MAILBOX_OR_APP_PASSWORD'
+export SMTP_FROM='no-reply@behtarpakistan.org'
+export SMTP_FROM_NAME='Behtar Pakistan'
+export PASSWORD_RESET_PUBLIC_ORIGIN='https://behtarpakistan.org'
+export NOTIFICATION_WEBHOOK_ENABLED=0
+export NOTIFICATION_WORKER_ENABLED=0
+```
+
+The app refuses SMTP mode if a value is missing, TLS is not enabled, the port or host differs, or the authenticated mailbox differs from the From address. Do not turn on the reset form until `https://behtarpakistan.org` is serving the app over HTTPS and the domain's mail DNS has been verified. The legacy `PASSWORD_RESET_DELIVERY_URL`/`PASSWORD_RESET_DELIVERY_SECRET` HTTPS relay remains an alternative; it is not used in SMTP mode.
+
+From the extracted artifact with the cPanel Node 22 environment active, source the private production environment and run one test to an address you control. `TEST_EMAIL` is required and used only as the recipient; the message contains no citizen, complaint or reset-token data. The command reports acceptance by the SMTP server, not inbox delivery. Confirm receipt and sender authentication in the test inbox; unset the recipient afterward.
+
+```sh
+cd /home/CPANEL_USER/behtar-pakistan
+. /home/CPANEL_USER/behtar-private/env/production.sh
+export TEST_EMAIL='YOUR_OWN_TEST_MAILBOX@example.org'
+node test-email.cjs
+unset TEST_EMAIL
+```
+
+If the test fails, inspect only the generic result and the private mail server configuration; the app deliberately does not log SMTP errors, credentials, recipients or message contents. Turn `NOTIFICATION_PROVIDER_MODE` back to `disabled` if delivery is not confirmed. Password reset requests return the same public response for existing and unknown accounts, and a failed send invalidates its token. Do not enable production email until this test and a real password-reset inbox test succeed.
 
 ## Cron, disabled until tested
 

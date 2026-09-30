@@ -2,21 +2,18 @@ import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "./password";
 import { normalizeEmail, validEmail, validPassword } from "./validation";
+import { passwordResetPublicOrigin, transactionalEmailAvailable } from "@/lib/email/config";
+import { sendTransactionalEmail } from "@/lib/email/transport";
 
 const TOKEN_LIFETIME_MS = 20 * 60_000;
 const REQUEST_WINDOW_MS = 60 * 60_000;
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 type Delivery = (email: string, resetUrl: string) => Promise<void>;
 
-function deliveryConfiguration(): { endpoint: string; origin: string; secret: string } | null {
+function deliveryConfiguration(): { origin: string } | null {
   if (process.env.FRIEND_TEST_MODE === "1" || process.env.AUTH_TEST_MODE === "1") return null;
-  try {
-    const endpoint = new URL(process.env.PASSWORD_RESET_DELIVERY_URL ?? "");
-    const origin = new URL(process.env.PASSWORD_RESET_PUBLIC_ORIGIN ?? "");
-    const secret = process.env.PASSWORD_RESET_DELIVERY_SECRET ?? "";
-    if (endpoint.protocol !== "https:" || origin.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash || origin.pathname !== "/" || origin.search || origin.hash || secret.length < 32) return null;
-    return { endpoint: endpoint.toString(), origin: origin.origin, secret };
-  } catch { return null; }
+  const origin = passwordResetPublicOrigin();
+  return origin && transactionalEmailAvailable() ? { origin } : null;
 }
 
 export function passwordRecoveryAvailable(): boolean { return deliveryConfiguration() !== null; }
@@ -24,10 +21,7 @@ export function passwordRecoveryAvailable(): boolean { return deliveryConfigurat
 function configuredDelivery(): { deliver: Delivery; origin: string } | null {
   const configuration = deliveryConfiguration();
   if (!configuration) return null;
-  return { origin: configuration.origin, deliver: async (email, resetUrl) => {
-    const response = await fetch(configuration.endpoint, { method: "POST", redirect: "error", signal: AbortSignal.timeout(5000), headers: { "Content-Type": "application/json", Authorization: `Bearer ${configuration.secret}` }, body: JSON.stringify({ to: email, subject: "Reset your Behtar Pakistan password", text: `Use this single-use link within 20 minutes to reset your password: ${resetUrl}\nIf you did not request this, ignore this message.` }) });
-    if (!response.ok) throw new Error("Password reset delivery unavailable");
-  } };
+  return { origin: configuration.origin, deliver: async (email, resetUrl) => sendTransactionalEmail({ to: email, subject: "Reset your Behtar Pakistan password", text: `Use this single-use link within 20 minutes to reset your password: ${resetUrl}\nIf you did not request this, ignore this message.` }) };
 }
 
 export async function requestPasswordReset(emailInput: string, injected?: { deliver: Delivery; origin: string }, now = new Date()): Promise<{ available: boolean }> {
@@ -63,6 +57,7 @@ export async function requestPasswordReset(emailInput: string, injected?: { deli
     resetUrl.searchParams.set("token", token);
     await provider.deliver(email, resetUrl.toString());
   } catch {
+    console.error("Password reset delivery failed; token invalidated.");
     await prisma.passwordResetToken.updateMany({ where: { tokenHash, usedAt: null }, data: { usedAt: now } });
   }
   return { available: true };

@@ -47,7 +47,7 @@ test("host preflight calls Prisma's supported runtime platform detector", async 
 });
 
 test("production startup rejects default, public and test data paths", () => {
-  const original = Object.fromEntries(["BEHTAR_PRODUCTION", "NODE_ENV", "FRIEND_TEST_MODE", "AUTH_TEST_MODE", "CPANEL_LOCAL_SMOKE", "DATABASE_URL", "PRIVATE_UPLOAD_ROOT", "PUBLIC_DONATIONS_ENABLED", "NOTIFICATION_PROVIDER_MODE", "NOTIFICATION_WEBHOOK_ENABLED"].map(key => [key, process.env[key]]));
+  const original = Object.fromEntries(["BEHTAR_PRODUCTION", "NODE_ENV", "FRIEND_TEST_MODE", "AUTH_TEST_MODE", "CPANEL_LOCAL_SMOKE", "DATABASE_URL", "PRIVATE_UPLOAD_ROOT", "PUBLIC_DONATIONS_ENABLED", "NOTIFICATION_PROVIDER_MODE", "NOTIFICATION_WEBHOOK_ENABLED", "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_FROM_NAME", "PASSWORD_RESET_PUBLIC_ORIGIN"].map(key => [key, process.env[key]]));
   const privateRoot = mkdtempSync(path.join(os.tmpdir(), "behtar-cpanel-"));
   const uploads = path.join(privateRoot, "uploads");
   mkdirSync(uploads);
@@ -75,6 +75,11 @@ test("production startup rejects default, public and test data paths", () => {
     process.env.PRIVATE_UPLOAD_ROOT = uploads;
     process.env.PUBLIC_DONATIONS_ENABLED = "1";
     assert.throws(assertProductionIsolation, /Unapproved/);
+    process.env.PUBLIC_DONATIONS_ENABLED = "0";
+    Object.assign(process.env, { NOTIFICATION_PROVIDER_MODE: "smtp", SMTP_HOST: "mail.privateemail.com", SMTP_PORT: "465", SMTP_SECURE: "true", SMTP_USER: "no-reply@behtarpakistan.org", SMTP_PASSWORD: "[QA TEST] mock-only credential", SMTP_FROM: "no-reply@behtarpakistan.org", SMTP_FROM_NAME: "Behtar Pakistan", PASSWORD_RESET_PUBLIC_ORIGIN: "https://behtarpakistan.org" });
+    assert.doesNotThrow(assertProductionIsolation);
+    process.env.SMTP_SECURE = "false";
+    assert.throws(assertProductionIsolation, /SMTP configuration/);
   } finally {
     for (const [key, value] of Object.entries(original)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     rmSync(privateRoot, { recursive: true, force: true });
@@ -92,5 +97,17 @@ test("cPanel artifact scan rejects private and QA files before packaging", () =>
       assert.match(result.stderr, /private, QA, credential or database file/);
       rmSync(path.join(artifact, filename));
     }
+  } finally { rmSync(artifact, { recursive: true, force: true }); }
+});
+
+test("cPanel artifact scan rejects a baked-in credential without printing it", () => {
+  const artifact = mkdtempSync(path.join(os.tmpdir(), "behtar-artifact-secret-"));
+  const marker = "[QA TEST] secret-artifact-sentinel-12345";
+  try {
+    writeFileSync(path.join(artifact, "server.js"), `const hidden = ${JSON.stringify(marker)};`);
+    const result = spawnSync(process.execPath, [path.resolve("scripts/verify-cpanel-artifact.mjs"), artifact, "--local-smoke"], { cwd: path.resolve("."), encoding: "utf8", env: { ...process.env, SMTP_PASSWORD: marker } });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /private credential value is embedded/);
+    assert.ok(!result.stderr.includes(marker));
   } finally { rmSync(artifact, { recursive: true, force: true }); }
 });

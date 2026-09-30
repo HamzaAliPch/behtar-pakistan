@@ -65,6 +65,7 @@ function copyDependency(source, destination) {
 copyDependency(path.join(root, "node_modules", "@prisma"), path.join(artifacts, "node_modules", "@prisma"));
 copyDependency(path.join(root, "node_modules", ".prisma", "client"), path.join(artifacts, "node_modules", ".prisma", "client"));
 copyDependency(path.join(root, "node_modules", "prisma"), path.join(artifacts, "node_modules", "prisma"));
+copyDependency(path.join(root, "node_modules", "nodemailer"), path.join(artifacts, "node_modules", "nodemailer"));
 cpSync(path.join(root, "app.js"), path.join(artifacts, "app.js"));
 cpSync(path.join(root, "preflight-cpanel.cjs"), path.join(artifacts, "preflight-cpanel.cjs"));
 cpSync(path.join(root, "cpanel-prisma-platform.cjs"), path.join(artifacts, "cpanel-prisma-platform.cjs"));
@@ -75,6 +76,7 @@ cpSync(path.join(root, "scripts", "cpanel-notifications-cron.sh"), path.join(art
 await build({ entryPoints: [path.join(root, "src", "lib", "production-safety.ts")], outfile: path.join(artifacts, "production-preflight.cjs"), bundle: true, platform: "node", format: "cjs", target: "node22" });
 await build({ entryPoints: [path.join(root, "scripts", "run-notification-worker.ts")], outfile: path.join(artifacts, "notification-worker.cjs"), bundle: true, platform: "node", format: "cjs", target: "node22", external: ["@prisma/client"] });
 await build({ entryPoints: [path.join(root, "scripts", "provision-admin.ts")], outfile: path.join(artifacts, "admin-provision-bundle.cjs"), bundle: true, platform: "node", format: "cjs", target: "node22", external: ["@prisma/client"] });
+await build({ entryPoints: [path.join(root, "scripts", "test-production-email.ts")], outfile: path.join(artifacts, "test-email.cjs"), bundle: true, platform: "node", format: "cjs", target: "node22", external: ["nodemailer"] });
 cpSync(path.join(root, "prisma", "schema.prisma"), path.join(artifacts, "prisma", "schema.prisma"));
 cpSync(path.join(root, "prisma", "migrations"), path.join(artifacts, "prisma", "migrations"), { recursive: true });
 function files(directory) { return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? files(path.join(directory, entry.name)) : [path.join(directory, entry.name)]); }
@@ -88,6 +90,7 @@ if (!localSmoke) for (const target of ["debian-openssl-1.0.x", "debian-openssl-1
   if (!names.includes(`node_modules/.prisma/client/libquery_engine-${target}.so.node`) || !names.includes(`node_modules/@prisma/engines/schema-engine-${target}`)) throw new Error(`Prisma client or CLI engine missing: ${target}`);
 }
 if (!names.includes("node_modules/@prisma/client/runtime/library.js") || !names.includes("node_modules/.prisma/client/default.js")) throw new Error("Prisma runtime missing from standalone artifact.");
+if (!names.includes("test-email.cjs") || !names.includes("node_modules/nodemailer/dist/cjs/nodemailer.js")) throw new Error("Production SMTP test command or transport missing from artifact.");
 const manifest = { sourceRevision: (spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout ?? "").trim(), sourceDirty: Boolean(gitStatus.stdout.trim()), platform: process.platform, architecture: process.arch, node: process.version, deployable: process.platform === "linux" && !localSmoke, createdAt: new Date().toISOString(), startupFile: "app.js", workerFile: "cron-notifications.cjs" };
 writeFileSync(path.join(artifacts, "release-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 if (readFileSync(path.join(artifacts, "server.js"), "utf8").length < 100) throw new Error("Invalid standalone server.");

@@ -39,10 +39,19 @@ function files(directory, prefix = "") {
 const names = files(artifact);
 const unsafe = names.filter(name => forbidden(name));
 if (unsafe.length) fail(`${unsafe.length} private, QA, credential or database file(s)`);
+// A release build must never bake a supplied production secret into Next output.
+// Report only a generic failure; never print the secret, filename or file contents.
+const secretValues = Object.entries(process.env)
+  .filter(([name, value]) => /(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY|API_KEY)/i.test(name) && typeof value === "string" && value.length >= 12)
+  .map(([, value]) => Buffer.from(value));
+if (secretValues.length) for (const name of names) {
+  const bytes = readFileSync(path.join(artifact, name));
+  if (secretValues.some(secret => bytes.includes(secret))) fail("a private credential value is embedded in the artifact");
+}
 if (!localSmoke && names.some(name => /(?:^|\/)(?:@prisma\/engines|\.prisma\/client)\/[^/]*(?:windows|win32|\.dll(?:\.node)?$|\.exe$)/i.test(name))) fail("Windows Prisma engine included");
 if (!localSmoke && names.some(name => /(?:^|\/)@next\/swc-win32-/i.test(name))) fail("Windows Next.js engine included");
 
-const required = ["app.js", "server.js", ".next/BUILD_ID", "release-manifest.json", "prisma/schema.prisma", "preflight-cpanel.cjs", "production-preflight.cjs", "cpanel-prisma-platform.cjs", "notification-worker.cjs", "node_modules/.prisma/client/default.js", "node_modules/@prisma/client/runtime/library.js", "node_modules/prisma/build/index.js"];
+const required = ["app.js", "server.js", ".next/BUILD_ID", "release-manifest.json", "prisma/schema.prisma", "preflight-cpanel.cjs", "production-preflight.cjs", "cpanel-prisma-platform.cjs", "notification-worker.cjs", "test-email.cjs", "node_modules/nodemailer/dist/cjs/nodemailer.js", "node_modules/.prisma/client/default.js", "node_modules/@prisma/client/runtime/library.js", "node_modules/prisma/build/index.js"];
 for (const name of required) if (!names.includes(name)) fail(`missing ${name}`);
 const manifest = JSON.parse(readFileSync(path.join(artifact, "release-manifest.json"), "utf8"));
 if (!/^[0-9a-f]{40}$/.test(manifest.sourceRevision) || (!localSmoke && manifest.sourceDirty)) fail("source revision is missing or dirty");
