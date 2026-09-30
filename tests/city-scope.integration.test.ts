@@ -1,0 +1,86 @@
+import { testCookieName } from "./http-cookie";
+import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
+import { unlink } from "node:fs/promises";
+import path from "node:path";
+import { test } from "node:test";
+import { PrismaClient } from "@prisma/client";
+import { roleHome } from "../src/lib/auth/permissions";
+import { managerCity } from "../src/lib/operations/city-access";
+import { transitionComplaint, addCaseNote } from "../src/lib/operations/cases";
+import { createTask, updateTaskStatus } from "../src/lib/operations/tasks";
+import { createReferralDraft } from "../src/lib/operations/referrals";
+import { canReadEvidence, uploadEvidence } from "../src/lib/operations/evidence";
+import { assignCityResource, assignManagerCity } from "../src/lib/operations/city-assignments";
+
+test("city manager operations enforce case, task, referral, evidence and resource boundaries", async () => {
+  if (!process.env.DATABASE_URL?.includes("auth-test.db")) throw new Error("Use isolated auth-test.db");
+  const db = new PrismaClient();
+  const suffix = randomBytes(5).toString("hex"), otherCityId = `scope-${suffix}`;
+  const users: string[] = [], cases: string[] = [], departments: string[] = [], keys: string[] = [];
+  try {
+    const otherCity = await db.city.create({ data: { id: otherCityId, slug: otherCityId, name: `Scope ${suffix}`, regionId: "sindh", status: "ACTIVE" } });
+    const [manager, otherManager, admin] = await Promise.all(["CITY_MANAGER", "CITY_MANAGER", "ADMIN"].map((role, index) => db.user.create({ data: { name: `Scope ${index}`, email: `scope-${index}-${suffix}@example.test`, passwordHash: "test-only", role: role as "CITY_MANAGER" | "ADMIN" } })));
+    users.push(manager.id, otherManager.id, admin.id);
+    const managerActor = { id: manager.id, role: "CITY_MANAGER" as const }, adminActor = { id: admin.id, role: "ADMIN" as const };
+    await db.cityMembership.createMany({ data: [{ userId: manager.id, cityId: "karachi" }, { userId: otherManager.id, cityId: otherCity.id }] });
+    assert.equal(roleHome("CITY_MANAGER"), "/city");
+    assert.equal((await managerCity(managerActor, "karachi")).id, "karachi");
+    await assert.rejects(managerCity(managerActor, otherCity.slug));
+    const own = await db.complaint.create({ data: { reference: `KFX-SCOPE-${suffix}A`, cityId: "karachi", title: "Own city case", category: "Streetlights", description: "A streetlight is broken", area: "Gulshan-e-Iqbal", district: "East" } });
+    const cross = await db.complaint.create({ data: { reference: `KFX-SCOPE-${suffix}B`, cityId: otherCity.id, title: "Other city case", category: "Streetlights", description: "Another streetlight is broken", area: "Test area", district: "Test district" } });
+    const ambiguous = await db.complaint.create({ data: { reference: `KFX-SCOPE-${suffix}C`, title: "Legacy location", category: "Streetlights", description: "Location needs review", area: "Old label" } });
+    cases.push(own.id, cross.id, ambiguous.id);
+    if (process.env.AUTH_TEST_BASE_URL) {
+      const token = randomBytes(32).toString("hex");
+      await db.session.create({ data: { userId: manager.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 60_000) } });
+      const headers = { Cookie: `${testCookieName}=${token}` }, base = process.env.AUTH_TEST_BASE_URL;
+      assert.equal((await fetch(`${base}/city/karachi`, { headers })).status, 200);
+      assert.equal((await fetch(`${base}/city/${otherCity.slug}`, { headers })).status, 404);
+      assert.equal((await fetch(`${base}/city/karachi/cases/${own.id}`, { headers })).status, 200);
+      assert.equal((await fetch(`${base}/city/karachi/cases/${cross.id}`, { headers })).status, 404);
+      assert.equal((await fetch(`${base}/city/karachi/cases/${ambiguous.id}`, { headers })).status, 404);
+    }
+    await transitionComplaint(managerActor, own.id, "UNDER_REVIEW", "Checking issue");
+    await transitionComplaint(managerActor, own.id, "VERIFIED", "Verified field details");
+    await assert.rejects(transitionComplaint(managerActor, cross.id, "UNDER_REVIEW", "Wrong city"), /forbidden/);
+    await assert.rejects(addCaseNote(managerActor, ambiguous.id, "Private note"), /forbidden/);
+    await transitionComplaint(adminActor, cross.id, "UNDER_REVIEW", "Platform review");
+    const task = await createTask(managerActor, { complaintId: own.id, assigneeId: manager.id, type: "FIELD_VISIT", priority: "NORMAL", deadline: new Date(Date.now() + 86400000).toISOString(), instructions: "Inspect this verified streetlight." });
+    await updateTaskStatus(managerActor, task.id, "IN_PROGRESS");
+    await assert.rejects(updateTaskStatus({ id: otherManager.id, role: "CITY_MANAGER" }, task.id, "BLOCKED", "No access"), /forbidden/);
+    const ownDept = await db.department.create({ data: { name: `Scope dept ${suffix} A`, cityId: "karachi", jurisdiction: "Test", serviceAreas: "Test" } });
+    const otherDept = await db.department.create({ data: { name: `Scope dept ${suffix} B`, cityId: otherCity.id, jurisdiction: "Test", serviceAreas: "Test" } });
+    departments.push(ownDept.id, otherDept.id);
+    await assert.rejects(createReferralDraft(managerActor, own.id, otherDept.id), /forbidden/);
+    const referral = await createReferralDraft(managerActor, own.id, ownDept.id);
+    assert.equal(referral.status, "DRAFT"); assert.equal(referral.submittedAt, null);
+    await assert.rejects(assignManagerCity(managerActor, otherManager.id, "karachi"), /forbidden/);
+    await assignManagerCity(adminActor, otherManager.id, "karachi");
+    await assert.rejects(assignCityResource(managerActor, "DEPARTMENT", ownDept.id, otherCity.id), /forbidden/);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==", "base64");
+    const file = new File([png], "field.png", { type: "image/png" });
+    const evidence = await uploadEvidence(managerActor, { complaintId: own.id, stage: "BEFORE", file });
+    keys.push(evidence.storageKey);
+    const allowed = { visibility: "INTERNAL", complaint: { userId: null, cityId: "karachi" }, task: null };
+    assert.equal(await canReadEvidence(managerActor, allowed), true);
+    assert.equal(await canReadEvidence(managerActor, { ...allowed, complaint: { userId: null, cityId: otherCity.id } }), false);
+    assert.equal(await canReadEvidence(managerActor, { ...allowed, complaint: { userId: null, cityId: null } }), false);
+    await assert.rejects(uploadEvidence(managerActor, { complaintId: cross.id, stage: "BEFORE", file }), /forbidden/);
+  } finally {
+    await db.caseEvent.deleteMany({ where: { complaintId: { in: cases } } });
+    await db.auditLog.deleteMany({ where: { actorId: { in: users } } });
+    await db.notification.deleteMany({ where: { userId: { in: users } } });
+    await db.referral.deleteMany({ where: { complaintId: { in: cases } } });
+    await db.evidence.deleteMany({ where: { complaintId: { in: cases } } });
+    await db.task.deleteMany({ where: { complaintId: { in: cases } } });
+    await db.complaint.deleteMany({ where: { id: { in: cases } } });
+    await db.department.deleteMany({ where: { id: { in: departments } } });
+    await db.cityMembership.deleteMany({ where: { userId: { in: users } } });
+    await db.session.deleteMany({ where: { userId: { in: users } } });
+    await db.user.deleteMany({ where: { id: { in: users } } });
+    await db.city.deleteMany({ where: { id: otherCityId } });
+    for (const key of keys) await unlink(path.join(process.env.PRIVATE_UPLOAD_ROOT || path.join(process.cwd(), "private_uploads"), key)).catch(() => undefined);
+    await db.$disconnect();
+  }
+});

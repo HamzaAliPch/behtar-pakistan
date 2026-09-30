@@ -1,0 +1,15 @@
+# Phase 4B: related reports and community support
+
+## Final retest rule clarification
+
+The citizen wizard may show resolved, approved public cases as historical context. A resolved case is not eligible for a new admin link. Automatic candidate creation requires a sufficiently similar, active, approved public partner. Admin linking also checks that both cases are still active when the decision is saved. The external retest's resolved partner therefore explains its zero admin candidates; it does not justify changing the case-link rule.
+
+Each successful new submission records its detector result and candidate count. The admin history shows recent submissions, including a reason when no active partner was eligible or no active case was sufficiently similar. Older submissions with no detector event are labeled Never ran; the system does not invent past results.
+
+The report wizard searches **approved public** active cases using category, city, district, selected area or approximate public map position, and public title similarity. It never uses reporter identity or phone. Candidate text is limited to an admin-approved public title; the search does not inspect another reporter's private description or coordinates. Suggestions are advisory. Different numbered assets (for example pole 5 and pole 6) are penalized. The citizen can open a public case to support it or continue a distinct report with all wizard state intact.
+
+New reports that strongly resemble a public case create an internal `CaseLink` with `SUGGESTED` status in the same transaction as submission. `/admin/duplicates` lets admins link, reject or unlink with a reason, event and audit record. No automatic merge occurs. A partial SQLite unique index permits at most one `LINKED` primary per source report. Cross-city links are refused. Historical records are not guessed into a city. Status, evidence, tasks, owner, SLA snapshot, notifications, resolution proposal, confirmation/reopening and completed-work publication stay attached to each original complaint. Primary case changes do not propagate to a linked report; each reporter must receive and confirm their own proposal.
+
+`ComplaintSupport` stores one active support per authenticated account and public case. Repeated requests are idempotent. The owner cannot support their own case. Support can be removed. No supporter identities are returned publicly; only an aggregate count appears, and fictional `[QA TEST]` cases do not contribute to public support metrics. Support does not change priority, status, SLA or finance. Existing “Follow updates” remains a separate subscription action. Anonymous support is intentionally unavailable.
+
+Migrations `20260928140000_case_links_support` add only new tables and indexes. No existing complaint or follow row is modified. Main/friend databases were backed up before these migrations and integrity checked. All QA writes should stay in the isolated friend-test or auth-test databases. A production deployment should later add pagination and a more scalable geospatial/text index before expansion beyond Karachi.

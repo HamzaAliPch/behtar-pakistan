@@ -1,0 +1,2 @@
+import Link from "next/link";
+export function DonationAdminNav() { const links = [["/admin/donations", "Review payments"], ["/admin/donations/settings", "Wallet accounts"], ["/admin/donations/campaigns", "Campaigns"], ["/admin/donations/expenses", "Expenses"]]; return <nav aria-label="Donation administration" className="mt-4 flex flex-wrap gap-2">{links.map(([href, label]) => <Link href={href} key={href} className="rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800">{label}</Link>)}</nav>; }

@@ -15,6 +15,9 @@
 
 # next.js
 /.next/
+/.next-friend-test/
+/.next-auth-test/
+/runtime/
 /out/
 
 # production
@@ -32,6 +35,22 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/*.db-wal
+/prisma/*.db-shm
+/prisma/*.sqlite
+/prisma/*.sqlite3
+/prisma/*.sqlite-journal
+/prisma/*.sqlite-wal
+/prisma/*.sqlite-shm
+/prisma/backups/
+/private_uploads/
+*.key
+credentials*.txt
+*tunnel-token*
+*.secret
 
 # vercel
 .vercel

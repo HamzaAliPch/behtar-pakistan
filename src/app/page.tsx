@@ -1,69 +1,27 @@
+import Link from "next/link";
 import Image from "next/image";
+import { ArrowRight, ArrowUpRight, CheckCheck, ClipboardList, HandHeart, HeartHandshake, MapPin, ShieldCheck, Users, Wallet } from "lucide-react";
+import { brand } from "@/lib/brand";
+import { prisma } from "@/lib/prisma";
+import { getFinanceSnapshot } from "@/lib/finance";
+import { listPublishedStories } from "@/lib/completed-work-public";
+import { CityScene } from "@/components/city-scene";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+export const dynamic = "force-dynamic";
+const number = (value: number) => value.toLocaleString("en-PK");
+
+export default async function Home() {
+  const [reported, resolved, volunteers, funds, stories] = await Promise.all([
+    prisma.complaint.count({ where: { title: { not: { startsWith: "[QA TEST]" } } } }), prisma.complaint.count({ where: { status: "RESOLVED", title: { not: { startsWith: "[QA TEST]" } } } }),
+    prisma.volunteerApplication.count({ where: { status: "APPROVED", user: { role: "VOLUNTEER" } } }),
+    getFinanceSnapshot(), listPublishedStories(),
+  ]);
+  const metrics = [{ icon: ClipboardList, value: number(reported), label: "Issues reported", note: "Every voice recorded" }, { icon: CheckCheck, value: number(resolved), label: "Cases resolved", note: "Confirmed through case review" }, { icon: Users, value: number(volunteers), label: "Approved volunteers", note: "People making time for change" }, { icon: Wallet, value: `PKR ${number(funds.verifiedNet)}`, label: "Net verified donations", note: "After recorded refunds" }];
+  return <div className="premium-home"><section className="home-hero"><div className="home-hero-copy"><div className="city-pill"><span className="coverage-dot" /> {brand.activeCityName} <span>Our first active city</span></div><h1>A better city.<br /><em>A shared</em><br />responsibility.</h1><p className="hero-tagline">{brand.tagline}</p><p className="hero-description">The street you walk. The park you love. The city we share. Report what needs care, follow real progress, and help your neighbourhood thrive.</p><div className="hero-ctas"><Link href="/report" className="btn-dark">Report an issue <ArrowUpRight size={18} /></Link><Link href="/map" className="btn-outline">Explore your city <MapPin size={17} /></Link></div><p className="hero-reassurance"><ShieldCheck size={16} /> Free to report. Private by default. Progress you can follow.</p></div><div className="home-hero-visual"><div className="visual-caption"><span>STARTING WITH KARACHI</span><span>24.86° N / 67.00° E</span></div><CityScene /><div className="floating-note"><span className="dimensional-icon"><CheckCheck size={23} /></span><div><strong>Small actions. Shared impact.</strong><span>A city shaped by its people.</span></div></div><div className="city-label"><MapPin size={14} /><span>KARACHI, PAKISTAN</span></div></div></section>
+    <section className="impact-strip" aria-label="Recorded community impact">{metrics.map(({ icon: Icon, value, label, note }) => <div key={label} className="impact-stat"><span className="metric-icon"><Icon size={21} strokeWidth={1.7} /></span><div><strong>{value}</strong><h2>{label}</h2><p>{note}</p></div></div>)}</section>
+    <section className="home-section"><div className="section-topline"><div><p className="section-kicker">The difference is visible</p><h2 className="section-title">Real places. Real progress.</h2></div><Link href="/projects" className="text-link">All projects <ArrowUpRight size={17} /></Link></div><p className="section-copy max-w-2xl">Before and after, with approved photos and a verified resolution. Every story has a case behind it.</p><div className="story-grid">{stories.slice(0, 3).map(story => <Link key={story.id} href={`/projects/completed/${story.id}`} className="premium-story"><div className="story-photo-pair">{["before", "after"].map(stage => <div key={stage}><Image unoptimized src={`/api/projects/completed/${story.id}/media/${stage}`} alt={`${stage} — ${story.complaint.publicTitle}`} fill className="object-cover" /><span>{stage}</span></div>)}</div><div className="story-body"><span className="story-category">{story.complaint.category}</span><h3>{story.complaint.publicTitle}</h3><p><MapPin size={14} /> {story.complaint.publicArea}</p><div className="story-meta"><span>{story.complaint.reference}</span><ArrowUpRight size={18} /></div></div></Link>)}{stories.length === 0 && <div className="honest-empty"><span className="dimensional-icon"><ShieldCheck size={30} /></span><div><h3>Progress deserves proof.</h3><p>Our first success stories will appear here once the work, resolution and public photos have been verified.</p><Link className="text-link" href="/map">See current public reports <ArrowRight size={16} /></Link></div></div>}</div></section>
+    <section className="home-section bento-section"><div className="funds-bento"><p className="section-kicker">Trust, made visible</p><h2>Your support.<br />An open record.</h2><p>Follow independently verified donations and documented spending. See where community funds stand.</p><div className="funds-mini"><div><span>Available balance</span><strong>PKR {number(funds.available)}</strong></div><div><span>Documented paid expenses</span><strong>PKR {number(funds.spent)}</strong></div></div><Link href="/funds" className="btn-light">Explore our funds <ArrowUpRight size={18} /></Link><Wallet className="funds-watermark" size={175} strokeWidth={.65} /></div><div className="people-bento"><span className="dimensional-icon"><HandHeart size={30} /></span><p className="section-kicker">Your time can make a difference</p><h2>Show up for<br />your neighbourhood.</h2><p>Join the approved volunteer team in Karachi. Bring your skills, local knowledge and willingness to help.</p><Link href="/volunteer/apply" className="text-link">Become a volunteer <ArrowUpRight size={17} /></Link></div><div className="partner-bento"><span className="metric-icon"><HeartHandshake size={24} /></span><div><h2>Better, together.</h2><p>Community organisations can connect with our team about verified partnerships.</p><Link href="/help" className="text-link">Talk to our team <ArrowUpRight size={16} /></Link></div></div></section>
+    <section className="home-section"><div className="section-topline"><div><p className="section-kicker">Simple steps. Meaningful action.</p><h2 className="section-title">From a report to a response.</h2></div></div><div className="how-grid">{[{ title: "Notice something?", copy: "A broken light, a damaged road, a space that needs care. Start with what you see.", icon: MapPin }, { title: "Share the details.", copy: "Choose a location, explain the issue and add photos if you have them.", icon: ClipboardList }, { title: "Follow the progress.", copy: "Keep your reference, review updates and confirm when the issue is resolved.", icon: CheckCheck }].map(({ title, copy, icon: Icon }, i) => <article key={title}><div><span className="metric-icon"><Icon size={24} /></span><span className="step-number">0{i + 1}</span></div><h3>{title}</h3><p>{copy}</p></article>)}</div></section>
+    <section className="home-section"><div className="support-banner"><div><p className="section-kicker">A little support goes a long way</p><h2>Help build a better everyday.</h2><p>Optional giving. Transparent records. Equal service for every citizen.</p></div><Link href="/donate" className="btn-dark">Support community work <ArrowUpRight size={18} /></Link></div></section>
+  </div>;
 }

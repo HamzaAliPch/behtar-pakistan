@@ -1,0 +1,8 @@
+import { karachiTime, slaStages } from "@/lib/sla";
+
+type Snapshot = { firstReviewTargetAt: Date | null; verificationTargetAt: Date | null; resolutionTargetAt: Date | null; firstReviewedAt: Date | null; verifiedOrAssignedAt: Date | null; resolutionProposedAt: Date | null } | null;
+export function SlaTracker({ snapshot }: { snapshot: Snapshot }) {
+  const stages = slaStages(snapshot);
+  const next = stages.find(stage => !stage.actual);
+  return <section className="surface-card" aria-labelledby="service-targets"><h2 id="service-targets" className="text-xl font-bold">Service timeline</h2><p className="mt-2 text-sm text-slate-600">These are team goals, not guarantees. Times use Pakistan Standard Time (Asia/Karachi).</p><p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{next ? next.target ? `Next target: ${next.label} · ${karachiTime(next.target)}${next.state === "OVERDUE" ? " · Overdue" : next.state === "APPROACHING" ? " · Approaching" : ""}` : "Target not yet defined" : "All recorded milestones reached"}</p><ol className="mt-5 space-y-4">{stages.map(stage => <li key={stage.label} className="border-l-2 border-emerald-200 pl-4"><strong className="text-sm">{stage.label}</strong><p className="mt-1 text-xs text-slate-600">{stage.target ? `Target ${karachiTime(stage.target)}` : "Target not yet defined"}</p><p className="mt-1 text-xs font-semibold">{stage.actual ? `Recorded ${karachiTime(stage.actual)}${stage.state === "DONE_LATE" ? " · After target" : ""}` : stage.state === "OVERDUE" ? "Overdue — team follow-up needed" : stage.state === "APPROACHING" ? "Approaching" : "Pending"}</p></li>)}</ol></section>;
+}

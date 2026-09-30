@@ -6,21 +6,40 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "admin:provision": "tsx scripts/provision-admin.ts",
+    "manager:provision": "tsx scripts/provision-city-manager.ts",
+    "notifications:work": "tsx scripts/run-notification-worker.ts",
+    "notifications:serve": "tsx scripts/run-notification-worker-recurring.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test:auth": "npm run test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@prisma/client": "6.12.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.48.0",
     "next": "16.3.6",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-leaflet": "^5.0.0",
+    "react-leaflet-cluster": "^4.1.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
+    "playwright-core": "^1.63.0",
+    "prisma": "6.12.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

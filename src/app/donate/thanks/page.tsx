@@ -1,0 +1,6 @@
+import Link from "next/link";
+export default async function DonationThanksPage({ searchParams }: { searchParams: Promise<{ code?: string }> }) {
+  const { code } = await searchParams;
+  const valid = typeof code === "string" && /^DON-[A-F0-9]{16}$/.test(code);
+  return <section className="inner-page"><div className="page-shell"><div className="surface-card max-w-2xl"><p className="section-kicker">Submitted for review</p><h1 className="page-heading mt-3">Thank you for supporting Karachi</h1><p className="mt-4 text-sm leading-7 text-slate-700">Your transfer details were recorded as <strong>pending</strong>. They are not counted as a donation until an admin independently verifies the receiving account.</p>{valid && <p className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm font-bold">Submission code: {code}</p>}<p className="mt-5 text-sm text-slate-600">Donations have no effect on complaint handling or priority. This is not a tax-deductible receipt.</p><div className="mt-6 flex flex-wrap gap-4"><Link href="/donate" className="btn-dark">Back to donations</Link><Link href="/transparency" className="self-center text-sm font-bold text-emerald-700 underline">Public transparency</Link></div></div></div></section>;
+}

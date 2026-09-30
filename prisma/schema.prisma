@@ -1,0 +1,928 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CITIZEN
+  ADMIN
+  CITY_MANAGER
+  VOLUNTEER
+}
+
+enum WalletMethod {
+  EASYPAISA
+  JAZZCASH
+  SADAPAY
+  NAYAPAY
+}
+
+enum DonationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  REFUNDED
+}
+
+enum FinanceExpenseStatus {
+  DRAFT
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model User {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  role         Role        @default(CITIZEN)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  sessions     Session[]
+  passwordResetTokens PasswordResetToken[]
+  complaints   Complaint[]
+  volunteerApplication VolunteerApplication?
+  assignedTasks Task[] @relation("TaskAssignee")
+  createdTasks Task[] @relation("TaskCreator")
+  uploadedEvidence Evidence[]
+  caseEvents CaseEvent[]
+  notifications Notification[]
+  auditLogs AuditLog[]
+  complaintFollows ComplaintFollow[]
+  complaintSupports ComplaintSupport[]
+  reviewedCaseLinks CaseLink[] @relation("CaseLinkReviewer")
+  helpArticles HelpArticle[] @relation("HelpArticleEditor")
+  supportRequests SupportRequest[] @relation("SupportRequester")
+  answeredSupportRequests SupportRequest[] @relation("SupportResponder")
+  configuredWallets WalletAccount[] @relation("WalletVerifier")
+  approvedCampaigns DonationCampaign[] @relation("CampaignApprover")
+  donationIntents DonationIntent[] @relation("DonationDonor")
+  donationReviews DonationVerification[] @relation("DonationReviewer")
+  recordedExpenses DonationExpense[] @relation("ExpenseRecorder")
+  approvedExpenses DonationExpense[] @relation("ExpenseApprover")
+  donationAudits DonationAudit[]
+  proposedFinanceCorrections FinanceCorrection[] @relation("FinanceCorrectionProposer")
+  approvedFinanceCorrections FinanceCorrection[] @relation("FinanceCorrectionApprover")
+  verifiedNgos PartnerNgo[] @relation("NgoVerifier")
+  ngoProjectsCreated NgoProject[] @relation("NgoProjectCreator")
+  verifiedNgoContributions NgoContribution[] @relation("NgoContributionVerifier")
+  ownedContacts CrmContact[] @relation("ContactOwner")
+  recordedInteractions ContactInteraction[] @relation("InteractionRecorder")
+  approvedPublicEvidence Evidence[] @relation("PublicEvidenceApprover")
+  approvedStoryContent CompletedWorkStory[] @relation("StoryContentApprover")
+  cityMemberships CityMembership[]
+  citizenProfile CitizenProfile?
+}
+
+model CitizenProfile {
+  userId String @id
+  phone String?
+  cityId String?
+  smsOptIn Boolean @default(false)
+  whatsappOptIn Boolean @default(false)
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city City? @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  @@index([cityId])
+}
+
+model CityMembership {
+  userId String
+  cityId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city City @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@id([userId, cityId])
+  @@index([cityId, userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginThrottle {
+  email       String    @id
+  failures    Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
+model PasswordResetToken {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetThrottle {
+  key String @id
+  requests Int @default(0)
+  blockedUntil DateTime?
+  updatedAt DateTime @updatedAt
+}
+
+model Complaint {
+  id          String   @id @default(cuid())
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  districtRecordId String?
+  districtRecord LocationDistrict? @relation(fields: [districtRecordId], references: [id], onDelete: Restrict)
+  localityId String?
+  locality Locality? @relation(fields: [localityId], references: [id], onDelete: Restrict)
+  locationNeedsReview Boolean @default(true)
+  reference   String   @unique
+  title       String
+  category    String
+  description String
+  area        String
+  location    String?
+  streetOrBlock String?
+  landmark String?
+  privateDirections String?
+  areaSource String?
+  submissionKey String? @unique
+  status      String   @default("SUBMITTED")
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  latitude    Float?
+  longitude   Float?
+  district    String?
+  publicVisible Boolean @default(false)
+  publicLatitude Float?
+  publicLongitude Float?
+  publicApprovedAt DateTime?
+  storyPublicApprovedAt DateTime?
+  publicTitle String?
+  publicArea String?
+  tasks       Task[]
+  referrals   Referral[]
+  evidence    Evidence[]
+  events      CaseEvent[]
+  followers   ComplaintFollow[]
+  supporters ComplaintSupport[]
+  duplicateSuggestions CaseLink[] @relation("CaseLinkSource")
+  linkedReports CaseLink[] @relation("CaseLinkTarget")
+  donationCampaigns DonationCampaign[]
+  fundedExpenses DonationExpense[] @relation("FundedExpenseComplaint")
+  ngoProjects NgoProject[]
+  contactLinks ContactCaseLink[]
+  completedWorkStory CompletedWorkStory?
+  slaSnapshot ComplaintSlaSnapshot?
+
+  @@index([createdAt])
+  @@index([cityId, status])
+  @@index([status])
+  @@index([userId, createdAt])
+  @@index([publicVisible, updatedAt])
+  @@index([latitude, longitude])
+  @@index([publicVisible, publicLatitude, publicLongitude])
+}
+
+model Country {
+  code String @id
+  name String
+  regions AdministrativeRegion[]
+}
+
+model AdministrativeRegion {
+  id String @id
+  countryCode String
+  country Country @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+  name String
+  kind String
+  cities City[]
+  @@unique([countryCode, name])
+}
+
+model City {
+  id String @id @default(cuid())
+  slug String @unique
+  name String
+  regionId String
+  region AdministrativeRegion @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  status String @default("COMING_SOON")
+  // A supported reporting adapter is required in addition to operational activation.
+  reportingAdapter String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  districts LocationDistrict[]
+  complaints Complaint[]
+  memberships CityMembership[]
+  volunteerApplications VolunteerApplication[]
+  ngoPartners PartnerNgo[]
+  departments Department[]
+  contacts CrmContact[]
+  donationCampaigns DonationCampaign[]
+  donationIntents DonationIntent[]
+  donationExpenses DonationExpense[]
+  helpArticles HelpArticle[]
+  citizenProfiles CitizenProfile[]
+}
+
+model LocationDistrict {
+  id String @id @default(cuid())
+  cityId String
+  city City @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  name String
+  sourceUrl String
+  active Boolean @default(true)
+  localities Locality[]
+  complaints Complaint[]
+  @@unique([cityId, name])
+}
+
+model Locality {
+  id String @id @default(cuid())
+  districtId String
+  district LocationDistrict @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  name String
+  kind String @default("LOCALITY")
+  parentId String?
+  parent Locality? @relation("LocalityHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children Locality[] @relation("LocalityHierarchy")
+  sourceUrl String
+  active Boolean @default(true)
+  updatedAt DateTime @updatedAt
+  complaints Complaint[]
+  @@unique([districtId, name])
+}
+
+model WalletAccount {
+  id String @id @default(cuid())
+  method WalletMethod @unique
+  accountNumber String
+  accountTitle String
+  instructions String
+  enabled Boolean @default(false)
+  verifiedAt DateTime?
+  verifiedById String?
+  verifiedBy User? @relation("WalletVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  donations DonationIntent[]
+}
+
+model DonationCampaign {
+  id String @id @default(cuid())
+  slug String @unique
+  title String
+  description String
+  goalPkr Int?
+  status String @default("DRAFT")
+  verificationNote String?
+  complaintId String?
+  complaint Complaint? @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  approvedAt DateTime?
+  approvedById String?
+  approvedBy User? @relation("CampaignApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  donations DonationIntent[]
+  expenses DonationExpense[]
+  ngoProject NgoProject?
+
+  @@index([status, createdAt])
+  @@index([cityId, status])
+  @@index([complaintId, status])
+}
+
+model DonationIntent {
+  id String @id @default(cuid())
+  code String @unique
+  campaignId String?
+  campaign DonationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  walletId String
+  wallet WalletAccount @relation(fields: [walletId], references: [id])
+  donorUserId String?
+  donorUser User? @relation("DonationDonor", fields: [donorUserId], references: [id], onDelete: SetNull)
+  amountPkr Int
+  transactionReference String
+  donorName String?
+  donorEmail String?
+  donorPhone String?
+  receiptKey String?
+  receiptMime String?
+  receiptSize Int?
+  status DonationStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  verifiedAt DateTime?
+  reviews DonationVerification[]
+
+  @@unique([walletId, transactionReference])
+  @@index([status, createdAt])
+  @@index([cityId, status])
+  @@index([campaignId, status])
+}
+
+model DonationVerification {
+  id String @id @default(cuid())
+  intentId String
+  intent DonationIntent @relation(fields: [intentId], references: [id])
+  reviewerId String
+  reviewer User @relation("DonationReviewer", fields: [reviewerId], references: [id])
+  decision DonationStatus
+  accountCheckNote String
+  createdAt DateTime @default(now())
+
+  @@index([intentId, createdAt])
+}
+
+model DonationExpense {
+  id String @id @default(cuid())
+  campaignId String?
+  campaign DonationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  complaintId String?
+  complaint Complaint? @relation("FundedExpenseComplaint", fields: [complaintId], references: [id], onDelete: SetNull)
+  amountPkr Int
+  purpose String
+  documentation String
+  spentAt DateTime
+  status FinanceExpenseStatus @default(DRAFT)
+  approvedAt DateTime?
+  approvedById String?
+  approvedBy User? @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  paidAt DateTime?
+  receiptKey String?
+  receiptMime String?
+  receiptSize Int?
+  publishedAt DateTime?
+  recordedById String
+  recordedBy User @relation("ExpenseRecorder", fields: [recordedById], references: [id])
+  corrections FinanceCorrection[]
+  createdAt DateTime @default(now())
+
+  @@index([publishedAt, spentAt])
+  @@index([campaignId])
+  @@index([status, paidAt])
+  @@index([cityId, status])
+}
+
+model FinanceCorrection {
+  id String @id @default(cuid())
+  expenseId String
+  expense DonationExpense @relation(fields: [expenseId], references: [id])
+  deltaPkr Int
+  reason String
+  proposedById String
+  proposedBy User @relation("FinanceCorrectionProposer", fields: [proposedById], references: [id])
+  approvedById String?
+  approvedBy User? @relation("FinanceCorrectionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([expenseId, approvedAt])
+}
+
+model DonationAudit {
+  id String @id @default(cuid())
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action String
+  targetType String
+  targetId String
+  details String?
+  createdAt DateTime @default(now())
+
+  @@index([targetType, targetId, createdAt])
+}
+
+model ComplaintFollow {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  complaintId String
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, complaintId])
+  @@index([complaintId])
+}
+
+model ComplaintSupport {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  complaintId String
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, complaintId])
+  @@index([complaintId, active])
+}
+
+model CaseLink {
+  id String @id @default(cuid())
+  sourceComplaintId String
+  sourceComplaint Complaint @relation("CaseLinkSource", fields: [sourceComplaintId], references: [id], onDelete: Restrict)
+  targetComplaintId String
+  targetComplaint Complaint @relation("CaseLinkTarget", fields: [targetComplaintId], references: [id], onDelete: Restrict)
+  status String @default("SUGGESTED")
+  score Int @default(0)
+  reason String?
+  reviewerId String?
+  reviewer User? @relation("CaseLinkReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([sourceComplaintId, targetComplaintId])
+  @@index([status, createdAt])
+  @@index([targetComplaintId, status])
+}
+
+model HelpArticle {
+  id String @id @default(cuid())
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  title String
+  category String
+  language String
+  content String
+  published Boolean @default(false)
+  editorId String?
+  editor User? @relation("HelpArticleEditor", fields: [editorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published, language, category])
+  @@index([cityId, published, language])
+}
+
+model AssistantUsage {
+  day String @id
+  requests Int @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model SupportRequest {
+  id String @id @default(cuid())
+  userId String
+  user User @relation("SupportRequester", fields: [userId], references: [id], onDelete: Cascade)
+  question String
+  language String
+  status String @default("OPEN")
+  response String?
+  responderId String?
+  responder User? @relation("SupportResponder", fields: [responderId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model VolunteerApplication {
+  id            String   @id @default(cuid())
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName      String
+  district      String
+  serviceArea   String
+  contactPhone  String
+  contactEmail  String
+  skills        String
+  availability  String
+  experience    String?
+  status        String   @default("PENDING")
+  reviewNote    String?
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  complaintId  String
+  complaint    Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  assigneeId   String?
+  assignee     User?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  partnerName  String?
+  ngoProjectId String?
+  ngoProject NgoProject? @relation(fields: [ngoProjectId], references: [id], onDelete: SetNull)
+  type         String
+  priority     String
+  deadline     DateTime
+  instructions String
+  status       String   @default("TODO")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  evidence     Evidence[]
+  events       CaseEvent[]
+
+  @@index([assigneeId, status])
+  @@index([deadline, status])
+  @@index([complaintId])
+  @@index([ngoProjectId])
+}
+
+model PartnerNgo {
+  id String @id @default(cuid())
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  name String @unique
+  contactPerson String
+  contactEmail String?
+  contactPhone String?
+  publicContact String?
+  serviceAreas String
+  expertise String
+  status String @default("PROSPECTIVE")
+  agreementNote String?
+  verifiedAt DateTime?
+  verifiedById String?
+  verifiedBy User? @relation("NgoVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projects NgoProject[]
+  contacts CrmContact[]
+
+  @@index([status, name])
+}
+
+model NgoProject {
+  id String @id @default(cuid())
+  ngoId String
+  ngo PartnerNgo @relation(fields: [ngoId], references: [id])
+  title String
+  description String
+  status String @default("PLANNED")
+  publicApproved Boolean @default(false)
+  publicSummary String?
+  complaintId String?
+  complaint Complaint? @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+  campaignId String? @unique
+  campaign DonationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy User? @relation("NgoProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tasks Task[]
+  evidence Evidence[]
+  milestones NgoMilestone[]
+  contributions NgoContribution[]
+  contactLinks ContactProjectLink[]
+
+  @@index([ngoId, status])
+  @@index([complaintId])
+}
+
+model CompletedWorkStory {
+  id String @id @default(cuid())
+  complaintId String @unique
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  problemSummary String?
+  workSummary String?
+  contentApprovedAt DateTime?
+  contentApprovedById String?
+  contentApprovedBy User? @relation("StoryContentApprover", fields: [contentApprovedById], references: [id], onDelete: SetNull)
+  status String @default("DRAFT")
+  holdReason String?
+  beforeEvidenceId String?
+  afterEvidenceId String?
+  completedAt DateTime?
+  publishedAt DateTime?
+  withdrawnAt DateTime?
+  manuallyWithdrawn Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model NgoMilestone {
+  id String @id @default(cuid())
+  projectId String
+  project NgoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title String
+  dueAt DateTime?
+  completedAt DateTime?
+  outcome String?
+  publicApproved Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([projectId, dueAt])
+}
+
+model NgoContribution {
+  id String @id @default(cuid())
+  projectId String
+  project NgoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind String
+  amountPkr Int?
+  description String
+  documentation String
+  verifiedAt DateTime?
+  verifiedById String?
+  verifiedBy User? @relation("NgoContributionVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([projectId, verifiedAt])
+}
+
+model Department {
+  id             String   @id @default(cuid())
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  name           String   @unique
+  jurisdiction   String
+  serviceAreas   String
+  contactDetails String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  referrals      Referral[]
+  contacts CrmContact[]
+}
+
+model CrmContact {
+  id String @id @default(cuid())
+  cityId String?
+  city City? @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  name String
+  organization String?
+  category String
+  phone String?
+  normalizedPhone String?
+  email String?
+  normalizedEmail String?
+  whatsapp String?
+  serviceArea String?
+  notes String?
+  nextFollowUpAt DateTime?
+  ownerId String?
+  owner User? @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  ngoId String?
+  ngo PartnerNgo? @relation(fields: [ngoId], references: [id], onDelete: SetNull)
+  departmentId String?
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  interactions ContactInteraction[]
+  complaintLinks ContactCaseLink[]
+  projectLinks ContactProjectLink[]
+
+  @@index([category, nextFollowUpAt])
+  @@index([normalizedPhone])
+  @@index([normalizedEmail])
+  @@index([ownerId])
+}
+
+model ContactInteraction {
+  id String @id @default(cuid())
+  contactId String
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  actorId String?
+  actor User? @relation("InteractionRecorder", fields: [actorId], references: [id], onDelete: SetNull)
+  channel String
+  summary String
+  happenedAt DateTime @default(now())
+  nextFollowUpAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([contactId, happenedAt])
+}
+
+model ContactCaseLink {
+  contactId String
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  complaintId String
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, complaintId])
+}
+
+model ContactProjectLink {
+  contactId String
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  projectId String
+  project NgoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, projectId])
+}
+
+model Referral {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  complaintId       String
+  complaint         Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  departmentId      String
+  department        Department @relation(fields: [departmentId], references: [id])
+  createdById       String?
+  status            String   @default("DRAFT")
+  submissionMethod  String?
+  submittedAt       DateTime?
+  officialReference String?
+  followUpAt        DateTime?
+  response          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  events            CaseEvent[]
+
+  @@index([status, followUpAt])
+  @@index([complaintId])
+}
+
+model Evidence {
+  id           String   @id @default(cuid())
+  complaintId  String
+  complaint    Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  taskId       String?
+  task         Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  ngoProjectId String?
+  ngoProject NgoProject? @relation(fields: [ngoProjectId], references: [id], onDelete: SetNull)
+  uploaderId   String?
+  uploader     User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  stage        String
+  visibility   String   @default("INTERNAL")
+  storageKey   String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  note         String?
+  publicApprovedAt DateTime?
+  publicApprovedById String?
+  publicApprovedBy User? @relation("PublicEvidenceApprover", fields: [publicApprovedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  events       CaseEvent[]
+
+  @@index([complaintId, createdAt])
+  @@index([taskId])
+}
+
+model CaseEvent {
+  id          String   @id @default(cuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  referralId  String?
+  referral    Referral? @relation(fields: [referralId], references: [id], onDelete: SetNull)
+  evidenceId  String?
+  evidence    Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  actorId     String?
+  actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  kind        String
+  summary     String
+  visibility  String   @default("INTERNAL")
+  createdAt   DateTime @default(now())
+
+  @@index([complaintId, createdAt])
+  @@index([taskId, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  href      String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  dedupeKey String? @unique
+  kind String?
+  complaintId String?
+
+  @@index([userId, readAt, createdAt])
+}
+
+model NotificationOutbox {
+  id String @id @default(cuid())
+  dedupeKey String @unique
+  userId String
+  complaintId String?
+  channel String
+  kind String
+  title String
+  message String
+  href String
+  status String @default("PENDING")
+  dueAt DateTime @default(now())
+  attempts Int @default(0)
+  maxAttempts Int @default(3)
+  lastErrorCode String?
+  deliveredAt DateTime?
+  providerMessageId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveryAttempts NotificationDeliveryAttempt[]
+  @@index([status, dueAt])
+  @@index([complaintId, kind, status])
+  @@index([userId, createdAt])
+}
+
+model NotificationDeliveryAttempt {
+  id String @id @default(cuid())
+  outboxId String
+  outbox NotificationOutbox @relation(fields: [outboxId], references: [id], onDelete: Restrict)
+  attempt Int
+  status String
+  errorCode String?
+  createdAt DateTime @default(now())
+  @@unique([outboxId, attempt])
+}
+
+model NotificationWebhookEvent {
+  id String @id
+  outboxId String
+  status String
+  createdAt DateTime @default(now())
+  @@index([outboxId])
+}
+
+model NotificationWorkerState {
+  id Int @id @default(1)
+  leaseToken String?
+  leaseUntil DateTime?
+  lastStartedAt DateTime?
+  lastFinishedAt DateTime?
+  lastSuccessAt DateTime?
+  lastErrorCode String?
+  lastExamined Int @default(0)
+  lastDelivered Int @default(0)
+  lastRetry Int @default(0)
+  lastBlocked Int @default(0)
+  lastCancelled Int @default(0)
+  totalRuns Int @default(0)
+  totalFailures Int @default(0)
+}
+
+model SlaPolicy {
+  id String @id @default(cuid())
+  cityId String
+  category String
+  version Int
+  firstReviewHours Int
+  verificationHours Int
+  resolutionHours Int
+  active Boolean @default(true)
+  approvedById String
+  approvedAt DateTime @default(now())
+  @@unique([cityId, category, version])
+  @@index([cityId, category, active])
+}
+
+model ComplaintSlaSnapshot {
+  complaintId String @id
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Restrict)
+  policyId String?
+  policyVersion Int?
+  capturedAt DateTime @default(now())
+  firstReviewTargetAt DateTime?
+  verificationTargetAt DateTime?
+  resolutionTargetAt DateTime?
+  firstReviewedAt DateTime?
+  verifiedOrAssignedAt DateTime?
+  resolutionProposedAt DateTime?
+  @@index([firstReviewTargetAt, firstReviewedAt])
+  @@index([verificationTargetAt, verifiedOrAssignedAt])
+  @@index([resolutionTargetAt, resolutionProposedAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+}

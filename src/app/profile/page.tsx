@@ -1,0 +1,24 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { requireRole } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
+import { saveCitizenProfileAction } from "@/app/actions/profile";
+import { formatPakistanDateTime } from "@/lib/pakistan-time";
+
+export const metadata: Metadata = { title: "Your citizen profile" };
+export const dynamic = "force-dynamic";
+
+export default async function CitizenProfilePage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
+  const user = await requireRole(["CITIZEN", "VOLUNTEER"], "/profile");
+  const [{ saved, error }, profile, cities, deliveries] = await Promise.all([
+    searchParams,
+    prisma.citizenProfile.findUnique({ where: { userId: user.id }, select: { phone: true, smsOptIn: true, whatsappOptIn: true, city: { select: { slug: true } } } }),
+    prisma.city.findMany({ select: { slug: true, name: true, status: true }, orderBy: { name: "asc" } }),
+    prisma.notificationOutbox.findMany({ where: { userId: user.id, channel: { in: ["SMS", "WHATSAPP"] } }, select: { id: true, channel: true, kind: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 20 }),
+  ]);
+  return <section className="inner-page"><div className="page-shell"><p className="section-kicker">Private account details</p><h1 className="page-heading mt-3">Your citizen profile</h1><p className="page-subtitle">Your phone and city are optional. They are visible only to authorized staff for handling your requests; choosing a Coming Soon city does not enable reporting there.</p><div className="surface-card mt-8 max-w-xl">
+    {saved && <p role="status" className="mb-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Profile saved.</p>}
+    {error && <p role="alert" className="form-error mb-5">Check your name, city and mobile number. Messaging requires a valid Pakistan mobile number.</p>}
+    <form action={saveCitizenProfileAction} className="space-y-5"><div><label htmlFor="profile-name" className="field-label">Full name</label><input id="profile-name" name="name" className="field-input" defaultValue={user.name} minLength={2} maxLength={80} required /></div><div><label htmlFor="profile-email" className="field-label">Email address</label><input id="profile-email" className="field-input bg-slate-50" value={user.email} readOnly /><p className="mt-1 text-xs text-slate-500">Email changes are not available in this test release.</p></div><div><label htmlFor="profile-phone" className="field-label">Phone (optional, private)</label><input id="profile-phone" name="phone" type="tel" autoComplete="tel" className="field-input" defaultValue={profile?.phone ?? ""} maxLength={25} /></div><div><label htmlFor="profile-city" className="field-label">Your city (optional)</label><select id="profile-city" name="citySlug" className="field-input" defaultValue={profile?.city?.slug ?? ""}><option value="">Prefer not to say</option>{cities.map(city => <option key={city.slug} value={city.slug}>{city.name}{city.status === "ACTIVE" ? "" : " · Coming Soon"}</option>)}</select></div><fieldset className="rounded-xl border border-slate-200 p-4"><legend className="px-1 font-bold">Case update notifications</legend><p className="mb-3 text-sm text-slate-600">In-app notifications are always available. You may save SMS and WhatsApp preferences for future use, but both channels are currently disabled and no external message will be sent. Your saved choices remain in place until you change them.</p><label className="mt-2 flex items-center gap-3 text-sm"><input type="checkbox" name="smsOptIn" defaultChecked={profile?.smsOptIn ?? false} /> Opt in to SMS when available</label><label className="mt-3 flex items-center gap-3 text-sm"><input type="checkbox" name="whatsappOptIn" defaultChecked={profile?.whatsappOptIn ?? false} /> Opt in to WhatsApp when available</label></fieldset><button type="submit" className="btn-dark cursor-pointer">Save profile</button></form><Link href="/notifications" className="mt-5 inline-block text-sm font-bold text-emerald-700 underline">View in-app notifications</Link><div className="mt-7 border-t pt-5"><h2 className="font-bold">External delivery history</h2><p className="mt-1 text-xs text-slate-500">No phone number, provider receipt or private case content is shown here.</p>{deliveries.length ? <ul className="mt-3 space-y-2 text-sm">{deliveries.map(item => <li key={item.id} className="rounded-lg bg-slate-50 p-3">{item.channel} · {item.kind.replaceAll("_", " ")} · {item.status.toLowerCase().replaceAll("_", " ")} · {formatPakistanDateTime(item.createdAt)}</li>)}</ul> : <p className="mt-3 text-sm text-slate-500">No external delivery attempts.</p>}</div><Link href="/dashboard" className="mt-5 inline-block text-sm font-bold text-emerald-700 underline">Back to dashboard</Link>
+  </div></div></section>;
+}
