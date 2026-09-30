@@ -1,7 +1,9 @@
 import path from "node:path";
 import { assertFriendTestIsolation } from "./friend-test-safety";
+import { assertProductionIsolation } from "./production-safety";
 
 assertFriendTestIsolation();
+assertProductionIsolation();
 export const privateStorageRoot = process.env.PRIVATE_UPLOAD_ROOT || path.join(process.cwd(), "private_uploads");
 
 export function privateStoragePath(...parts: string[]) {

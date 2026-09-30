@@ -1,7 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { assertFriendTestIsolation } from "./friend-test-safety";
+import { assertProductionIsolation } from "./production-safety";
 
 assertFriendTestIsolation();
+assertProductionIsolation();
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 

@@ -1,6 +1,6 @@
 # Behtar Pakistan
 
-**Release review:** [RC1 release record](docs/rc1-release-2026-09-29.md) · [operations and backup runbook](docs/rc1-operations-runbook.md) · [production deployment plan](docs/rc1-production-deployment-plan.md). RC1 is blocked from public launch pending a clean production environment, verified access controls and owner approval.
+**Release review:** [RC1 release record](docs/rc1-release-2026-09-29.md) · [operations and backup runbook](docs/rc1-operations-runbook.md) · [production deployment plan](docs/rc1-production-deployment-plan.md) · [Namecheap Stellar preparation and restore runbook](docs/namecheap-stellar-rc1.md). RC1 is blocked from public launch pending a clean production environment, verified access controls and owner approval.
 
 Behtar Pakistan is a civic issue reporting and operations platform, currently operating as Behtar Karachi in Karachi. Citizens submit and track cases; Behtar Pakistan staff review cases, coordinate approved volunteers and partner work, and record referrals to departments when an actual submission occurs.
 

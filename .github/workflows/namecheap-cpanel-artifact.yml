@@ -1,0 +1,99 @@
+name: Build Namecheap cPanel artifact
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-artifact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+          cache: npm
+      - name: Verify clean Linux source and install pinned dependencies
+        shell: bash
+        env:
+          PRISMA_CLI_BINARY_TARGETS: native,rhel-openssl-1.1.x,rhel-openssl-3.0.x
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test "$(node -v)" = v22.23.2
+          test -z "$(git status --porcelain)"
+          npm ci
+          export DATABASE_URL="file:$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
+          node node_modules/prisma/build/index.js generate
+          node node_modules/next/dist/bin/next typegen
+      - name: TypeScript and lint
+        run: |
+          npm run typecheck
+          npm run lint
+      - name: Full tests against a fresh disposable database and local server
+        shell: bash
+        env:
+          AUTH_TEST_MODE: "1"
+          FRIEND_TEST_MODE: "0"
+          PUBLIC_DONATIONS_ENABLED: "1"
+          NOTIFICATION_PROVIDER_MODE: disabled
+          AUTH_TEST_PRODUCTION: "1"
+          AUTH_TEST_BASE_URL: http://127.0.0.1:3100
+        run: |
+          set -euo pipefail
+          export DATABASE_URL="file:$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
+          export PRIVATE_UPLOAD_ROOT="$GITHUB_WORKSPACE/runtime/cpanel-ci/uploads"
+          mkdir -p "$PRIVATE_UPLOAD_ROOT"
+          test ! -e "$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
+          : > "$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
+          node node_modules/prisma/build/index.js migrate deploy
+          npm run build
+          NODE_ENV=production node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3100 > runtime/cpanel-ci/server.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$web_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:3100/; then ready=1; break; fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo 'Isolated test server did not start'; exit 1; }
+          npm test
+      - name: Build and verify deployable standalone artifact
+        shell: bash
+        env:
+          PRISMA_CLI_BINARY_TARGETS: native,rhel-openssl-1.1.x,rhel-openssl-3.0.x
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          npm run build:cpanel
+          node scripts/verify-cpanel-artifact.mjs
+      - name: Package ZIP and SHA-256 checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v zip
+          command -v unzip
+          (cd runtime/cpanel-build/artifact && zip -q -r -X "$GITHUB_WORKSPACE/behtar-pakistan-rc1-linux-x64.zip" .)
+          unzip -tqq behtar-pakistan-rc1-linux-x64.zip
+          mkdir -p runtime/cpanel-ci/zip-extract
+          unzip -q behtar-pakistan-rc1-linux-x64.zip -d runtime/cpanel-ci/zip-extract
+          node scripts/verify-cpanel-artifact.mjs runtime/cpanel-ci/zip-extract
+          sha256sum behtar-pakistan-rc1-linux-x64.zip > behtar-pakistan-rc1-linux-x64.zip.sha256
+          sha256sum -c behtar-pakistan-rc1-linux-x64.zip.sha256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: behtar-pakistan-rc1-linux-x64
+          path: |
+            behtar-pakistan-rc1-linux-x64.zip
+            behtar-pakistan-rc1-linux-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 7

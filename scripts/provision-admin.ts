@@ -23,7 +23,7 @@ async function main() {
     }
     await tx.user.create({ data: { name, email, passwordHash, role: "ADMIN" } });
   });
-  console.log(process.env.FRIEND_TEST_MODE === "1" ? "Initial test-only administrator created in isolated friend-test database." : `Initial administrator created: ${email}`);
+  console.log(process.env.FRIEND_TEST_MODE === "1" ? "Initial test-only administrator created in isolated friend-test database." : "Initial administrator created.");
 }
 
 main().catch(error => { console.error(error.message); process.exitCode = 1; }).finally(async () => { await prisma.$disconnect(); });

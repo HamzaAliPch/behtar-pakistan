@@ -70,6 +70,10 @@ export async function requestPasswordReset(emailInput: string, injected?: { deli
 
 export async function consumePasswordReset(token: string, password: string, now = new Date()): Promise<boolean> {
   if (!/^[a-f0-9]{64}$/.test(token) || !validPassword(password)) return false;
+  // Random guesses must not trigger an expensive password hash. The transaction
+  // below still claims the real token atomically after hashing.
+  const candidate = await prisma.passwordResetToken.findUnique({ where: { tokenHash: digest(token) }, select: { usedAt: true, expiresAt: true } });
+  if (!candidate || candidate.usedAt || candidate.expiresAt <= now) return false;
   const passwordHash = await hashPassword(password);
   return prisma.$transaction(async tx => {
     const record = await tx.passwordResetToken.findUnique({ where: { tokenHash: digest(token) }, include: { user: { select: { role: true } } } });
