@@ -24,7 +24,7 @@ jobs:
         shell: bash
         env:
           # Prisma CLI downloads need concrete platforms; "native" belongs only in schema.prisma.
-          PRISMA_CLI_BINARY_TARGETS: debian-openssl-3.0.x,rhel-openssl-1.1.x,rhel-openssl-3.0.x
+          PRISMA_CLI_BINARY_TARGETS: debian-openssl-3.0.x,debian-openssl-1.1.x,rhel-openssl-1.1.x,rhel-openssl-3.0.x
         run: |
           set -euo pipefail
           test "$(uname -s)" = Linux
@@ -33,7 +33,7 @@ jobs:
           test -z "$(git status --porcelain)"
           npm ci
           node -e 'require("@prisma/get-platform").getBinaryTargetForCurrentPlatform().then(target => { if (target !== "debian-openssl-3.0.x") throw new Error(`Unexpected runner Prisma platform: ${target}`) })'
-          for target in debian-openssl-3.0.x rhel-openssl-1.1.x rhel-openssl-3.0.x; do
+          for target in debian-openssl-3.0.x debian-openssl-1.1.x rhel-openssl-1.1.x rhel-openssl-3.0.x; do
             test -f "node_modules/@prisma/engines/schema-engine-$target"
           done
           export DATABASE_URL="file:$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"

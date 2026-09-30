@@ -51,7 +51,7 @@ if (localSmoke) {
   if (manifest.deployable !== false) fail("local smoke artifact must not be deployable");
 } else {
   if (manifest.deployable !== true || manifest.platform !== "linux" || manifest.architecture !== "x64" || manifest.node !== "v22.23.2") fail("manifest does not describe deployable Linux x64 Node 22.23.2 output");
-  for (const target of ["rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
+  for (const target of ["debian-openssl-1.1.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
     for (const name of [`node_modules/.prisma/client/libquery_engine-${target}.so.node`, `node_modules/@prisma/engines/schema-engine-${target}`]) if (!names.includes(name)) fail(`missing ${name}`);
   }
 }
