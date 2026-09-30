@@ -22,8 +22,6 @@ jobs:
           cache: npm
       - name: Verify clean Linux source and install pinned dependencies
         shell: bash
-        env:
-          PRISMA_CLI_BINARY_TARGETS: native,rhel-openssl-1.1.x,rhel-openssl-3.0.x
         run: |
           set -euo pipefail
           test "$(uname -s)" = Linux
@@ -69,8 +67,6 @@ jobs:
           npm test
       - name: Build and verify deployable standalone artifact
         shell: bash
-        env:
-          PRISMA_CLI_BINARY_TARGETS: native,rhel-openssl-1.1.x,rhel-openssl-3.0.x
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain)"
