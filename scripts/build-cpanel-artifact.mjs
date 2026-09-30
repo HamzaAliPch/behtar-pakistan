@@ -67,6 +67,7 @@ copyDependency(path.join(root, "node_modules", ".prisma", "client"), path.join(a
 copyDependency(path.join(root, "node_modules", "prisma"), path.join(artifacts, "node_modules", "prisma"));
 cpSync(path.join(root, "app.js"), path.join(artifacts, "app.js"));
 cpSync(path.join(root, "preflight-cpanel.cjs"), path.join(artifacts, "preflight-cpanel.cjs"));
+cpSync(path.join(root, "cpanel-prisma-platform.cjs"), path.join(artifacts, "cpanel-prisma-platform.cjs"));
 cpSync(path.join(root, "migrate-production.cjs"), path.join(artifacts, "migrate-production.cjs"));
 cpSync(path.join(root, "admin-provision.cjs"), path.join(artifacts, "admin-provision.cjs"));
 cpSync(path.join(root, "cron-notifications.cjs"), path.join(artifacts, "cron-notifications.cjs"));

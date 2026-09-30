@@ -42,7 +42,7 @@ if (unsafe.length) fail(`${unsafe.length} private, QA, credential or database fi
 if (!localSmoke && names.some(name => /(?:^|\/)(?:@prisma\/engines|\.prisma\/client)\/[^/]*(?:windows|win32|\.dll(?:\.node)?$|\.exe$)/i.test(name))) fail("Windows Prisma engine included");
 if (!localSmoke && names.some(name => /(?:^|\/)@next\/swc-win32-/i.test(name))) fail("Windows Next.js engine included");
 
-const required = ["app.js", "server.js", ".next/BUILD_ID", "release-manifest.json", "prisma/schema.prisma", "production-preflight.cjs", "notification-worker.cjs", "node_modules/.prisma/client/default.js"];
+const required = ["app.js", "server.js", ".next/BUILD_ID", "release-manifest.json", "prisma/schema.prisma", "preflight-cpanel.cjs", "production-preflight.cjs", "cpanel-prisma-platform.cjs", "notification-worker.cjs", "node_modules/.prisma/client/default.js", "node_modules/@prisma/client/runtime/library.js", "node_modules/prisma/build/index.js"];
 for (const name of required) if (!names.includes(name)) fail(`missing ${name}`);
 const manifest = JSON.parse(readFileSync(path.join(artifact, "release-manifest.json"), "utf8"));
 if (!/^[0-9a-f]{40}$/.test(manifest.sourceRevision) || (!localSmoke && manifest.sourceDirty)) fail("source revision is missing or dirty");

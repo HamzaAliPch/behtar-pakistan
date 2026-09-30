@@ -1,10 +1,50 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { assertProductionIsolation } from "../src/lib/production-safety";
+
+const require = createRequire(import.meta.url);
+// The packaged host preflight is intentionally a CommonJS entrypoint.
+const { assertPackagedPrismaPlatform, detectAndAssertPackagedPrismaPlatform } = require("../cpanel-prisma-platform.cjs") as {
+  assertPackagedPrismaPlatform: (root: string, target: string, platform?: string) => string;
+  detectAndAssertPackagedPrismaPlatform: (root: string) => Promise<string>;
+};
+
+test("host preflight requires the exact Linux/OpenSSL client and CLI engines", () => {
+  const artifact = mkdtempSync(path.join(os.tmpdir(), "behtar-prisma-host-"));
+  const client = path.join(artifact, "node_modules", ".prisma", "client");
+  const cli = path.join(artifact, "node_modules", "@prisma", "engines");
+  mkdirSync(client, { recursive: true });
+  mkdirSync(cli, { recursive: true });
+  try {
+    for (const target of ["debian-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
+      const clientEngine = path.join(client, `libquery_engine-${target}.so.node`);
+      const cliEngine = path.join(cli, `schema-engine-${target}`);
+      writeFileSync(clientEngine, "[QA TEST] engine fixture");
+      assert.throws(() => assertPackagedPrismaPlatform(artifact, target, "linux"), /No packaged Prisma engines/);
+      writeFileSync(cliEngine, "[QA TEST] engine fixture");
+      assert.equal(assertPackagedPrismaPlatform(artifact, target, "linux"), target);
+      rmSync(clientEngine);
+      assert.throws(() => assertPackagedPrismaPlatform(artifact, target, "linux"), /No packaged Prisma engines/);
+      writeFileSync(clientEngine, "[QA TEST] engine fixture");
+      assert.throws(() => assertPackagedPrismaPlatform(artifact, target, "win32"), /Unsupported Prisma host/);
+    }
+    for (const target of ["windows", "rhel-openssl-1.0.x", "linux-musl-openssl-3.0.x"]) {
+      assert.throws(() => assertPackagedPrismaPlatform(artifact, target, "linux"), /Unsupported Prisma host/);
+    }
+  } finally { rmSync(artifact, { recursive: true, force: true }); }
+});
+
+test("host preflight calls Prisma's supported runtime platform detector", async () => {
+  assert.equal(typeof detectAndAssertPackagedPrismaPlatform, "function");
+  if (process.platform !== "linux") {
+    await assert.rejects(detectAndAssertPackagedPrismaPlatform(path.resolve(".")), /Unsupported Prisma host/);
+  }
+});
 
 test("production startup rejects default, public and test data paths", () => {
   const original = Object.fromEntries(["BEHTAR_PRODUCTION", "NODE_ENV", "FRIEND_TEST_MODE", "AUTH_TEST_MODE", "CPANEL_LOCAL_SMOKE", "DATABASE_URL", "PRIVATE_UPLOAD_ROOT", "PUBLIC_DONATIONS_ENABLED", "NOTIFICATION_PROVIDER_MODE", "NOTIFICATION_WEBHOOK_ENABLED"].map(key => [key, process.env[key]]));

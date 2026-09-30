@@ -80,6 +80,28 @@ jobs:
           test -z "$(git status --porcelain)"
           npm run build:cpanel
           node scripts/verify-cpanel-artifact.mjs
+      - name: Run packaged host preflight against disposable private paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          private_root="$GITHUB_WORKSPACE/runtime/cpanel-ci/host-private"
+          mkdir -p "$private_root/uploads"
+          : > "$private_root/production.db"
+          : > "$private_root/production.sh"
+          chmod 700 "$private_root" "$private_root/uploads"
+          chmod 600 "$private_root/production.db" "$private_root/production.sh"
+          export NODE_ENV=production
+          export BEHTAR_PRODUCTION=1
+          export FRIEND_TEST_MODE=0
+          export AUTH_TEST_MODE=0
+          export PUBLIC_DONATIONS_ENABLED=0
+          export NOTIFICATION_PROVIDER_MODE=disabled
+          export NOTIFICATION_WEBHOOK_ENABLED=0
+          export DATABASE_URL="file:$private_root/production.db"
+          export PRIVATE_UPLOAD_ROOT="$private_root/uploads"
+          export BEHTAR_ENV_FILE="$private_root/production.sh"
+          (cd runtime/cpanel-build/artifact && node preflight-cpanel.cjs)
       - name: Package ZIP and SHA-256 checksum
         shell: bash
         run: |
