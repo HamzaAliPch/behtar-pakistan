@@ -32,7 +32,7 @@ jobs:
           test "$(node -v)" = v22.23.2
           test -z "$(git status --porcelain)"
           npm ci
-          node -e 'require("@prisma/get-platform").getPlatform().then(target => { if (target !== "debian-openssl-3.0.x") throw new Error(`Unexpected runner Prisma platform: ${target}`) })'
+          node -e 'require("@prisma/get-platform").getBinaryTargetForCurrentPlatform().then(target => { if (target !== "debian-openssl-3.0.x") throw new Error(`Unexpected runner Prisma platform: ${target}`) })'
           for target in debian-openssl-3.0.x rhel-openssl-1.1.x rhel-openssl-3.0.x; do
             test -f "node_modules/@prisma/engines/schema-engine-$target"
           done
