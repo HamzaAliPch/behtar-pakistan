@@ -55,9 +55,16 @@ cpSync(path.join(root, ".next", "static"), path.join(artifacts, ".next", "static
 if (existsSync(path.join(root, "public"))) cpSync(path.join(root, "public"), path.join(artifacts, "public"), { recursive: true });
 // The web trace may omit runtime files used only by the separately bundled cron
 // and provisioning CLIs. Copy their exact generated Prisma runtime as well.
-cpSync(path.join(root, "node_modules", "@prisma"), path.join(artifacts, "node_modules", "@prisma"), { recursive: true, filter: source => !/\.tmp\d+$/i.test(source) });
-cpSync(path.join(root, "node_modules", ".prisma", "client"), path.join(artifacts, "node_modules", ".prisma", "client"), { recursive: true, filter: source => !/\.tmp\d+$/i.test(source) });
-cpSync(path.join(root, "node_modules", "prisma"), path.join(artifacts, "node_modules", "prisma"), { recursive: true });
+function copyDependency(source, destination) {
+  cpSync(source, destination, { recursive: true, dereference: true, filter(file) {
+    if (/\.tmp\d+$/i.test(file)) return false;
+    if (lstatSync(file).isSymbolicLink() && !realpathSync(file).startsWith(path.join(root, "node_modules") + path.sep)) throw new Error("Unexpected dependency symlink target.");
+    return true;
+  } });
+}
+copyDependency(path.join(root, "node_modules", "@prisma"), path.join(artifacts, "node_modules", "@prisma"));
+copyDependency(path.join(root, "node_modules", ".prisma", "client"), path.join(artifacts, "node_modules", ".prisma", "client"));
+copyDependency(path.join(root, "node_modules", "prisma"), path.join(artifacts, "node_modules", "prisma"));
 cpSync(path.join(root, "app.js"), path.join(artifacts, "app.js"));
 cpSync(path.join(root, "preflight-cpanel.cjs"), path.join(artifacts, "preflight-cpanel.cjs"));
 cpSync(path.join(root, "migrate-production.cjs"), path.join(artifacts, "migrate-production.cjs"));
