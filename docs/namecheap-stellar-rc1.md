@@ -22,7 +22,8 @@ From a **clean committed** reviewed source revision on Linux x64 with Node 22.23
 ```sh
 node --version                         # v22.23.2
 git status --short                     # must be empty
-export PRISMA_CLI_BINARY_TARGETS='native,rhel-openssl-1.1.x,rhel-openssl-3.0.x'
+# CLI downloads require concrete platform names; schema.prisma retains "native" for Prisma Client.
+export PRISMA_CLI_BINARY_TARGETS='debian-openssl-3.0.x,rhel-openssl-1.1.x,rhel-openssl-3.0.x'
 npm ci
 npm run typecheck
 npm run lint
