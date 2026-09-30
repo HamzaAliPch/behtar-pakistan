@@ -7,6 +7,7 @@ const { getBinaryTargetForCurrentPlatform } = require("@prisma/get-platform");
 
 // These are the Linux/OpenSSL targets included in the approved release build.
 const supportedTargets = new Set([
+  "debian-openssl-1.0.x",
   "debian-openssl-1.1.x",
   "debian-openssl-3.0.x",
   "rhel-openssl-1.1.x",

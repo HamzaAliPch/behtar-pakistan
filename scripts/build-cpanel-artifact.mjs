@@ -84,7 +84,7 @@ if (forbidden.length) throw new Error(`Artifact contains ${forbidden.length} for
 if (names.some(name => /\.tmp\d+$/i.test(name))) throw new Error("Artifact contains temporary generated files.");
 const engines = names.filter(name => /libquery_engine.*\.so\.node$/.test(name));
 if (!localSmoke && engines.length === 0) throw new Error("Linux Prisma query engine missing from standalone artifact.");
-if (!localSmoke) for (const target of ["debian-openssl-1.1.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
+if (!localSmoke) for (const target of ["debian-openssl-1.0.x", "debian-openssl-1.1.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
   if (!names.includes(`node_modules/.prisma/client/libquery_engine-${target}.so.node`) || !names.includes(`node_modules/@prisma/engines/schema-engine-${target}`)) throw new Error(`Prisma client or CLI engine missing: ${target}`);
 }
 if (!names.includes("node_modules/@prisma/client/runtime/library.js") || !names.includes("node_modules/.prisma/client/default.js")) throw new Error("Prisma runtime missing from standalone artifact.");

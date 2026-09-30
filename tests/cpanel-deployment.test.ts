@@ -21,7 +21,7 @@ test("host preflight requires the exact Linux/OpenSSL client and CLI engines", (
   mkdirSync(client, { recursive: true });
   mkdirSync(cli, { recursive: true });
   try {
-    for (const target of ["debian-openssl-1.1.x", "debian-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
+    for (const target of ["debian-openssl-1.0.x", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]) {
       const clientEngine = path.join(client, `libquery_engine-${target}.so.node`);
       const cliEngine = path.join(cli, `schema-engine-${target}`);
       writeFileSync(clientEngine, "[QA TEST] engine fixture");
