@@ -50,6 +50,7 @@ jobs:
           export DATABASE_URL="file:$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
           export PRIVATE_UPLOAD_ROOT="$GITHUB_WORKSPACE/runtime/cpanel-ci/uploads"
           mkdir -p "$PRIVATE_UPLOAD_ROOT"
+          mkdir -p "$GITHUB_WORKSPACE/runtime/friend-test/uploads"
           test ! -e "$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
           : > "$GITHUB_WORKSPACE/runtime/cpanel-ci/auth-test.db"
           node node_modules/prisma/build/index.js migrate deploy
